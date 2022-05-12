@@ -130,7 +130,7 @@ where
     I::Item: Pack<T>,
 {
     #[inline]
-    fn pack(self, offset: usize, output: &mut [u8]) -> ([FixedUsize; 2], usize) {
+    fn pack(self, offset: usize, output: &mut [u8]) -> Result<([FixedUsize; 2], usize), usize> {
         debug_assert_eq!(
             output.as_ptr() as usize % <Seq<T> as Schema>::align(),
             0,
@@ -157,15 +157,30 @@ where
         let mut used = packed_size * len;
         used = (used + item_align_mask) & !item_align_mask;
 
+        let mut fits = true;
         let mut off = 0;
         for item in iter {
             let aligned = (used + (<T>::align() - 1)) & !(<T>::align() - 1);
-            let (item_packed, item_used) = item.pack(offset + aligned, &mut output[aligned..]);
-            output[off..][..packed_size].copy_from_slice(bytemuck::bytes_of(&item_packed));
-            used = aligned + item_used;
+            match item.pack(offset + aligned, &mut output[aligned..]) {
+                Ok((item_packed, item_used)) => {
+                    if output.len() >= off + packed_size {
+                        output[off..][..packed_size].copy_from_slice(bytemuck::bytes_of(&item_packed));
+                    } else {
+                        fits = false;
+                    }
+                    used = aligned + item_used;
+                }
+                Err(item_need) => {
+                    used = aligned + item_need;
+                }
+            }
             off += packed_size;
         }
 
-        ([len32, offset32], used)
+        if fits {
+            Ok(([len32, offset32], used))
+        } else {
+            Err(used)
+        }
     }
 }

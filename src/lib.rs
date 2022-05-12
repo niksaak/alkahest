@@ -47,7 +47,7 @@ pub use bytemuck::{Pod, Zeroable};
 /// # Panics
 ///
 /// Panics if value doesn't fit into bytes.
-pub fn write<'a, T, P>(bytes: &'a mut [u8], packable: P) -> usize
+pub fn write<'a, T, P>(bytes: &'a mut [u8], packable: P) -> Result<usize, usize>
 where
     T: Schema,
     P: Pack<T>,
@@ -62,9 +62,15 @@ where
 
     let packed_size = size_of::<T::Packed>();
     let aligned = (packed_size + align_mask) & !align_mask;
-    let (packed, used) = packable.pack(aligned, &mut bytes[aligned..]);
-    bytes[..packed_size].copy_from_slice(bytemuck::bytes_of(&packed));
-    aligned + used
+    match packable.pack(aligned, &mut bytes[aligned..]) {
+        Ok((packed, used)) => {
+            bytes[..packed_size].copy_from_slice(bytemuck::bytes_of(&packed));
+            Ok(aligned + used)
+        }
+        Err(need) => {
+            Err(aligned + need)
+        }
+    }
 }
 
 /// Reads and unpacks package from raw bytes.

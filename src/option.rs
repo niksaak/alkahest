@@ -54,24 +54,28 @@ where
     U: Pack<T>,
 {
     #[inline]
-    fn pack(self, offset: usize, output: &mut [u8]) -> (Packed<Option<T>>, usize) {
+    fn pack(self, offset: usize, output: &mut [u8]) -> Result<(Packed<Option<T>>, usize), usize> {
         match self {
-            None => (
-                PackedOption {
-                    some: 0,
-                    value: bytemuck::Zeroable::zeroed(),
-                },
-                0,
-            ),
-            Some(value) => {
-                let (packed, used) = value.pack(offset, output);
+            None => Ok(
                 (
                     PackedOption {
-                        some: 1,
-                        value: packed,
+                        some: 0,
+                        value: bytemuck::Zeroable::zeroed(),
                     },
-                    used,
+                    0,
                 )
+            ),
+            Some(value) => match value.pack(offset, output) {
+                Ok((packed, used)) => Ok(
+                    (
+                        PackedOption {
+                            some: 1,
+                            value: packed,
+                        },
+                        used,
+                    )
+                ),
+                Err(need) => Err(need),
             }
         }
     }

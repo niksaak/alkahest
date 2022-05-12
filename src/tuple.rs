@@ -18,15 +18,15 @@ impl Schema for () {
 
 impl Pack<()> for () {
     #[inline(always)]
-    fn pack(self, _offset: usize, _output: &mut [u8]) -> ((), usize) {
-        ((), 0)
+    fn pack(self, _offset: usize, _output: &mut [u8]) -> Result<((), usize), usize> {
+        Ok(((), 0))
     }
 }
 
 impl Pack<()> for &'_ () {
     #[inline(always)]
-    fn pack(self, _offset: usize, _output: &mut [u8]) -> ((), usize) {
-        ((), 0)
+    fn pack(self, _offset: usize, _output: &mut [u8]) -> Result<((), usize), usize> {
+        Ok(((), 0))
     }
 }
 
@@ -82,7 +82,7 @@ macro_rules! impl_for_tuple {
             $($a: Schema, $b: Pack<$a>,)+
         {
             #[inline]
-            fn pack(self, offset: usize, output: &mut [u8]) -> ($packed_tuple<$($a::Packed,)+>, usize) {
+            fn pack(self, offset: usize, output: &mut [u8]) -> Result<($packed_tuple<$($a::Packed,)+>, usize), usize> {
                 #![allow(non_snake_case)]
 
                 debug_assert_eq!(
@@ -98,13 +98,19 @@ macro_rules! impl_for_tuple {
 
                 let ($($b,)+) = self;
                 let mut used = 0;
-                let packed = $packed_tuple( $( {
+                let packed_results = $packed_tuple( $( {
                     let aligned = (used + (<$a>::align() - 1)) & !(<$a>::align() - 1);
-                    let (packed, size) = $b.pack(offset + aligned, &mut output[aligned..]);
-                    used = aligned + size;
-                    packed
-                },)+ );
-                (packed, used)
+                    let result = $b.pack(offset + aligned, &mut output[aligned..]);
+                    match &result {
+                        Ok((_, size)) => used = aligned + size,
+                        Err(size) => used = aligned + size,
+                    }
+                    result.map(|pt| pt.0)
+                },)+);
+                match packed_results {
+                    $packed_tuple($(Ok($b),)+) => Ok(($packed_tuple($($b,)+), used)),
+                    _ => Err(used)
+                }
             }
         }
 
@@ -113,17 +119,23 @@ macro_rules! impl_for_tuple {
             $($a: Schema, &'a $b: Pack<$a>,)+
         {
             #[inline]
-            fn pack(self, offset: usize, output: &mut [u8]) -> ($packed_tuple<$($a::Packed,)+>, usize) {
+            fn pack(self, offset: usize, output: &mut [u8]) -> Result<($packed_tuple<$($a::Packed,)+>, usize), usize> {
                 #![allow(non_snake_case)]
 
                 let ($($b,)+) = self;
                 let mut used = 0;
-                let packed = $packed_tuple( $( {
-                    let (packed, size) = $b.pack(offset + used, &mut output[used..]);
-                    used += size;
-                    packed
+                let packed_results = $packed_tuple( $( {
+                    let result = $b.pack(offset + used, &mut output[used..]);
+                    match result {
+                        Ok((_, size)) => used += size,
+                        Err(size) => used += size,
+                    }
+                    result.map(|pt| pt.0)
                 },)+ );
-                (packed, used)
+                match packed_results {
+                    $packed_tuple($(Ok($b),)+) => Ok(($packed_tuple($($b,)+), used)),
+                    _ => Err(used)
+                }
             }
         }
     };

@@ -26,8 +26,9 @@ pub trait Schema: for<'a> SchemaUnpack<'a> + 'static {
 pub trait Pack<T: Schema> {
     /// Packs into trivially serializable value.
     ///
-    /// Returns packed data and number of bytes used from `output` storage.
-    fn pack(self, offset: usize, output: &mut [u8]) -> (Packed<T>, usize);
+    /// Returns packed data and number of bytes used from `output` storage,
+    /// or the required size of the output buffer in case it is not big enough.
+    fn pack(self, offset: usize, output: &mut [u8]) -> Result<(Packed<T>, usize), usize>;
 }
 
 /// Type alias for packed value with [`Schema`] of type `T`.

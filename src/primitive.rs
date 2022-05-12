@@ -40,14 +40,14 @@ macro_rules! impl_primitive {
         {
             #[inline(always)]
             #[cfg(target_endian = "little")]
-            fn pack(self, _offset: usize, _bytes: &mut [u8]) -> ($ty, usize) {
-                (*self.borrow(), 0)
+            fn pack(self, _offset: usize, _bytes: &mut [u8]) -> Result<($ty, usize), usize> {
+                Ok((*self.borrow(), 0))
             }
 
             #[inline(always)]
             #[cfg(not(target_endian = "little"))]
-            fn pack(self, _offset: usize, _bytes: &mut [u8]) -> ($ty, usize) {
-                (<$ty>::to_le(*self.borrow()), 0)
+            fn pack(self, _offset: usize, _bytes: &mut [u8]) -> Result<($ty, usize), usize> {
+                Ok((<$ty>::to_le(*self.borrow()), 0))
             }
         }
     };
@@ -78,7 +78,7 @@ where
     T: core::borrow::Borrow<bool>,
 {
     #[inline(always)]
-    fn pack(self, _offset: usize, _bytes: &mut [u8]) -> (u8, usize) {
-        (*self.borrow() as u8, 0)
+    fn pack(self, _offset: usize, _bytes: &mut [u8]) -> Result<(u8, usize), usize> {
+        Ok((*self.borrow() as u8, 0))
     }
 }

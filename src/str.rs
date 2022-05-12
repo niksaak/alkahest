@@ -41,13 +41,17 @@ where
     T: AsRef<[u8]>,
 {
     #[inline]
-    fn pack(self, offset: usize, output: &mut [u8]) -> ([FixedUsize; 2], usize) {
+    fn pack(self, offset: usize, output: &mut [u8]) -> Result<([FixedUsize; 2], usize), usize> {
         let bytes = self.as_ref();
 
         let len32 = u32::try_from(bytes.len()).expect("Slice is too large");
         let offset32 = u32::try_from(offset).expect("Offset is too large");
 
-        output[..bytes.len()].copy_from_slice(bytes);
-        ([len32, offset32], bytes.len())
+        if output.len() <= bytes.len() {
+            output[..bytes.len()].copy_from_slice(bytes);
+            Ok(([len32, offset32], bytes.len()))
+        } else {
+            Err(bytes.len())
+        }
     }
 }
